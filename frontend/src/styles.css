@@ -490,12 +490,6 @@ th {
   background: #f2f8ef;
 }
 
-.yield-panel {
-  margin-top: 18px;
-  border-top: 1px solid #e4eadf;
-  padding-top: 18px;
-}
-
 .selected-box {
   display: grid;
   gap: 4px;
@@ -503,6 +497,34 @@ th {
   border-radius: 8px;
   background: #f4f8f1;
   padding: 12px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 34, 26, 0.42);
+  padding: 20px;
+}
+
+.modal-panel {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border: 1px solid #dce5d7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+  box-shadow: 0 24px 70px rgba(20, 34, 26, 0.22);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .selected-box.spacious {
@@ -611,6 +633,10 @@ th {
   }
 
   .app-nav {
+    display: grid;
+  }
+
+  .modal-actions {
     display: grid;
   }
 

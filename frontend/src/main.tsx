@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Sprout,
+  X,
 } from "lucide-react";
 import "./styles.css";
 
@@ -266,6 +267,7 @@ function App() {
   const [selected, setSelected] = React.useState<FieldObservation | null>(null);
   const [prediction, setPrediction] = React.useState<YieldPrediction | null>(null);
   const [yieldForm, setYieldForm] = React.useState<YieldResultForm>(() => createYieldResultForm());
+  const [yieldModalOpen, setYieldModalOpen] = React.useState(false);
   const [apiStatus, setApiStatus] = React.useState<"checking" | "ok" | "error">("checking");
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState("");
@@ -301,6 +303,11 @@ function App() {
 
   function updateYieldField<K extends keyof YieldResultForm>(key: K, value: YieldResultForm[K]) {
     setYieldForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function openYieldModal(observation: FieldObservation) {
+    selectObservation(observation);
+    setYieldModalOpen(true);
   }
 
   async function createObservation(event: React.FormEvent) {
@@ -410,6 +417,7 @@ function App() {
       setYieldForm(createYieldResultForm(updated));
       await loadObservations();
       setMessage(`Rendement reel enregistre pour ${updated.observation_code}.`);
+      setYieldModalOpen(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Mise a jour du rendement impossible.");
     } finally {
@@ -458,10 +466,13 @@ function App() {
           selected={selected}
           yieldForm={yieldForm}
           observationsError={observationsError}
+          yieldModalOpen={yieldModalOpen}
           loading={loading}
           onRefresh={loadObservations}
           onCreate={() => setView("new-observation")}
           onSelect={selectObservation}
+          onOpenYield={openYieldModal}
+          onCloseYield={() => setYieldModalOpen(false)}
           onYieldChange={updateYieldField}
           onYieldSubmit={updateYieldResult}
           onPredict={(observation) => {
@@ -544,10 +555,13 @@ function ObservationsPage({
   selected,
   yieldForm,
   observationsError,
+  yieldModalOpen,
   loading,
   onRefresh,
   onCreate,
   onSelect,
+  onOpenYield,
+  onCloseYield,
   onYieldChange,
   onYieldSubmit,
   onPredict,
@@ -556,10 +570,13 @@ function ObservationsPage({
   selected: FieldObservation | null;
   yieldForm: YieldResultForm;
   observationsError: string;
+  yieldModalOpen: boolean;
   loading: boolean;
   onRefresh: () => void;
   onCreate: () => void;
   onSelect: (observation: FieldObservation) => void;
+  onOpenYield: (observation: FieldObservation) => void;
+  onCloseYield: () => void;
   onYieldChange: <K extends keyof YieldResultForm>(key: K, value: YieldResultForm[K]) => void;
   onYieldSubmit: (event: React.FormEvent) => void;
   onPredict: (observation: FieldObservation) => void;
@@ -629,7 +646,7 @@ function ObservationsPage({
                   <td>{observation.pest_pressure}/{observation.disease_pressure}</td>
                   <td>
                     <div className="table-actions">
-                      <button className="secondary" type="button" onClick={() => onSelect(observation)}>
+                      <button className="secondary" type="button" onClick={() => onOpenYield(observation)}>
                         Rendement
                       </button>
                       <button className="secondary" type="button" onClick={() => onPredict(observation)}>
@@ -644,50 +661,88 @@ function ObservationsPage({
         </div>
       )}
 
-      {selected && (
-        <form className="yield-panel" onSubmit={onYieldSubmit}>
-          <div className="panel-title row-between">
-            <div>
-              <h2>Rendement reel apres recolte</h2>
-              <p className="muted">
-                Observation {selected.observation_code} - {selected.crop} sur {selected.surface_ha} ha.
-              </p>
-            </div>
-            <button className="primary compact" type="submit" disabled={loading}>
-              {loading ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
-              Enregistrer rendement
-            </button>
-          </div>
-          <div className="grid four">
-            <TextInput
-              label="Date recolte *"
-              type="date"
-              value={yieldForm.harvest_date}
-              onChange={(value) => onYieldChange("harvest_date", value)}
-            />
-            <NumberInput
-              label="Rendement reel t/ha *"
-              value={yieldForm.actual_yield_t_ha}
-              onChange={(value) => onYieldChange("actual_yield_t_ha", value)}
-            />
-            <NumberInput
-              label="Production totale tonnes"
-              value={yieldForm.actual_total_tons}
-              onChange={(value) => onYieldChange("actual_total_tons", value)}
-            />
-            <NumberInput
-              label="Pertes %"
-              value={yieldForm.loss_percent}
-              onChange={(value) => onYieldChange("loss_percent", value)}
-            />
-          </div>
-          <label className="field full">
-            <span>Notes de recolte</span>
-            <textarea value={yieldForm.notes} onChange={(event) => onYieldChange("notes", event.target.value)} />
-          </label>
-        </form>
+      {yieldModalOpen && selected && (
+        <YieldResultModal
+          selected={selected}
+          yieldForm={yieldForm}
+          loading={loading}
+          onClose={onCloseYield}
+          onYieldChange={onYieldChange}
+          onYieldSubmit={onYieldSubmit}
+        />
       )}
     </section>
+  );
+}
+
+function YieldResultModal({
+  selected,
+  yieldForm,
+  loading,
+  onClose,
+  onYieldChange,
+  onYieldSubmit,
+}: {
+  selected: FieldObservation;
+  yieldForm: YieldResultForm;
+  loading: boolean;
+  onClose: () => void;
+  onYieldChange: <K extends keyof YieldResultForm>(key: K, value: YieldResultForm[K]) => void;
+  onYieldSubmit: (event: React.FormEvent) => void;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <form className="modal-panel" onSubmit={onYieldSubmit} onMouseDown={(event) => event.stopPropagation()}>
+        <div className="panel-title row-between">
+          <div>
+            <h2>Rendement reel apres recolte</h2>
+            <p className="muted">
+              Observation {selected.observation_code} - {selected.crop} sur {selected.surface_ha} ha.
+            </p>
+          </div>
+          <button className="ghost" type="button" onClick={onClose} title="Fermer">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid two">
+          <TextInput
+            label="Date recolte *"
+            type="date"
+            value={yieldForm.harvest_date}
+            onChange={(value) => onYieldChange("harvest_date", value)}
+          />
+          <NumberInput
+            label="Rendement reel t/ha *"
+            value={yieldForm.actual_yield_t_ha}
+            onChange={(value) => onYieldChange("actual_yield_t_ha", value)}
+          />
+          <NumberInput
+            label="Production totale tonnes"
+            value={yieldForm.actual_total_tons}
+            onChange={(value) => onYieldChange("actual_total_tons", value)}
+          />
+          <NumberInput
+            label="Pertes %"
+            value={yieldForm.loss_percent}
+            onChange={(value) => onYieldChange("loss_percent", value)}
+          />
+        </div>
+
+        <label className="field full">
+          <span>Notes de recolte</span>
+          <textarea value={yieldForm.notes} onChange={(event) => onYieldChange("notes", event.target.value)} />
+        </label>
+
+        <div className="modal-actions">
+          <button className="secondary" type="button" onClick={onClose}>Annuler</button>
+          <button className="primary compact" type="submit" disabled={loading}>
+            {loading ? <Loader2 size={16} className="spin" /> : <CheckCircle2 size={16} />}
+            Enregistrer rendement
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
