@@ -156,7 +156,7 @@ h2 {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -246,6 +246,12 @@ h2 {
 .row-between {
   align-items: flex-start;
   justify-content: space-between;
+}
+
+.title-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .toolbar {
@@ -585,6 +591,139 @@ th {
   color: #b42318;
 }
 
+.analysis-page {
+  display: grid;
+  gap: 16px;
+}
+
+.analysis-hero {
+  padding-bottom: 14px;
+}
+
+.analysis-summary {
+  margin-bottom: 0;
+}
+
+.analysis-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.analysis-card {
+  min-width: 0;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.comparison-stat,
+.insight-box,
+.leader-item {
+  border: 1px solid #e1eadc;
+  border-radius: 8px;
+  background: #f8faf6;
+  padding: 12px;
+}
+
+.comparison-stat span,
+.insight-box span,
+.leader-item span,
+.bar-label span {
+  display: block;
+  color: #68786c;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.comparison-stat strong,
+.insight-box strong,
+.leader-item strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 22px;
+}
+
+.comparison-stat small,
+.leader-item small {
+  display: block;
+  margin-top: 5px;
+  color: #68786c;
+}
+
+.insight-box {
+  margin-top: 10px;
+}
+
+.insight-box p {
+  margin-top: 6px;
+  color: #68786c;
+}
+
+.leader-list,
+.bar-list {
+  display: grid;
+  gap: 10px;
+}
+
+.bar-row {
+  display: grid;
+  gap: 7px;
+}
+
+.bar-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bar-label strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bar-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8efe4;
+}
+
+.bar-fill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #1f6b35, #57a36b);
+}
+
+.analysis-table {
+  min-width: 980px;
+}
+
+.positive {
+  color: #166534;
+}
+
+.negative {
+  color: #b42318;
+}
+
+.inline-error {
+  margin-bottom: 12px;
+  border: 1px solid #f2b8b5;
+  border-radius: 6px;
+  background: #fff8f7;
+  color: #b42318;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
 .spin {
   animation: spin 0.9s linear infinite;
 }
@@ -605,6 +744,7 @@ th {
   }
 
   .dashboard-grid,
+  .analysis-grid,
   .prediction-layout {
     grid-template-columns: 1fr;
   }
@@ -628,8 +768,13 @@ th {
   .grid.three,
   .grid.four,
   .summary-grid,
+  .comparison-grid,
   .prediction-card {
     grid-template-columns: 1fr;
+  }
+
+  .bar-label {
+    display: grid;
   }
 
   .app-nav {
