@@ -29,12 +29,12 @@ type FieldObservationForm = {
   province: string;
   territory: string;
   village: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | "";
+  longitude: number | "";
   altitude_m: number | "";
   farm_name: string;
   plot_code: string;
-  surface_ha: number;
+  surface_ha: number | "";
   slope_percent: number | "";
   drainage: DrainageLevel;
   previous_crop: string;
@@ -83,42 +83,74 @@ type YieldPrediction = {
 
 const today = new Date().toISOString().slice(0, 10);
 
+const cropOptions = [
+  "cassava",
+  "maize",
+  "rice",
+  "beans",
+  "groundnut",
+  "soybean",
+  "sweet_potato",
+  "plantain",
+  "banana",
+  "sorghum",
+  "watermelon",
+  "palm",
+  "rubber",
+];
+
+const cropLabels: Record<string, string> = {
+  cassava: "Manioc",
+  maize: "Mais",
+  rice: "Riz",
+  beans: "Haricot",
+  groundnut: "Arachide",
+  soybean: "Soja",
+  sweet_potato: "Patate douce",
+  plantain: "Plantain",
+  banana: "Banane",
+  sorghum: "Sorgho",
+  watermelon: "Pasteque",
+  palm: "Palmier a huile",
+  rubber: "Hevea",
+};
+
 function createInitialForm(): FieldObservationForm {
   return {
     observation_code: `OBS-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
     observation_date: today,
-    agent_name: "Agent Demo",
-    province: "Province Demo",
-    territory: "Territoire Demo",
-    village: "Village Demo",
-    latitude: -4.123,
-    longitude: 15.456,
-    altitude_m: 120,
-    farm_name: "Ferme Demo",
-    plot_code: "PLOT-DEMO-001",
-    surface_ha: 1,
-    slope_percent: 3,
+    agent_name: "",
+    province: "",
+    territory: "",
+    village: "",
+    latitude: "",
+    longitude: "",
+    altitude_m: "",
+    farm_name: "",
+    plot_code: "",
+    surface_ha: "",
+    slope_percent: "",
     drainage: "good",
-    previous_crop: "manioc",
-    crop: "maize",
-    seed_variety: "locale amelioree",
+    previous_crop: "",
+    crop: "cassava",
+    seed_variety: "",
     planting_date: today,
-    planting_density_ha: 50000,
-    expected_harvest_date: today,
+    planting_density_ha: "",
+    expected_harvest_date: "",
     soil_texture: "loamy",
-    soil_ph: 6.2,
-    organic_matter_percent: 3,
-    nitrogen_mg_kg: 25,
-    phosphorus_mg_kg: 15,
-    potassium_mg_kg: 120,
-    soil_moisture_percent: 45,
-    rainfall_mm: 850,
-    temperature_avg_c: 27,
-    fertilizer_kg_ha: 100,
+    soil_ph: "",
+    organic_matter_percent: "",
+    nitrogen_mg_kg: "",
+    phosphorus_mg_kg: "",
+    potassium_mg_kg: "",
+    soil_moisture_percent: "",
+    rainfall_mm: "",
+    temperature_avg_c: "",
+    fertilizer_kg_ha: "",
     irrigation: false,
     pest_pressure: "low",
     disease_pressure: "low",
-    notes: "Observation terrain test",
+    notes: "",
   };
 }
 
@@ -176,6 +208,24 @@ function App() {
     event.preventDefault();
     setLoading(true);
     setMessage("");
+    const requiredFields: Array<[keyof FieldObservationForm, string]> = [
+      ["agent_name", "Agent"],
+      ["province", "Province"],
+      ["latitude", "Latitude"],
+      ["longitude", "Longitude"],
+      ["plot_code", "Code parcelle"],
+      ["surface_ha", "Surface ha"],
+      ["crop", "Culture"],
+      ["planting_date", "Date semis"],
+    ];
+    const missing = requiredFields
+      .filter(([key]) => form[key] === "" || form[key] === null || form[key] === undefined)
+      .map(([, label]) => label);
+    if (missing.length > 0) {
+      setMessage(`Complete les champs obligatoires : ${missing.join(", ")}.`);
+      setLoading(false);
+      return;
+    }
     try {
       const created = await apiRequest<FieldObservation>("/field-observations", {
         method: "POST",
@@ -460,20 +510,20 @@ function ObservationForm({
       <div className="grid two">
         <TextInput label="Code observation" value={form.observation_code} onChange={(value) => onChange("observation_code", value)} />
         <TextInput label="Date observation" type="date" value={form.observation_date} onChange={(value) => onChange("observation_date", value)} />
-        <TextInput label="Agent" value={form.agent_name} onChange={(value) => onChange("agent_name", value)} />
-        <TextInput label="Province" value={form.province} onChange={(value) => onChange("province", value)} />
+        <TextInput label="Agent *" value={form.agent_name} onChange={(value) => onChange("agent_name", value)} />
+        <TextInput label="Province *" value={form.province} onChange={(value) => onChange("province", value)} />
         <TextInput label="Territoire" value={form.territory} onChange={(value) => onChange("territory", value)} />
         <TextInput label="Village" value={form.village} onChange={(value) => onChange("village", value)} />
       </div>
 
       <div className="section-title">Parcelle</div>
       <div className="grid three">
-        <NumberInput label="Latitude" value={form.latitude} onChange={(value) => onChange("latitude", value === "" ? 0 : value)} />
-        <NumberInput label="Longitude" value={form.longitude} onChange={(value) => onChange("longitude", value === "" ? 0 : value)} />
+        <NumberInput label="Latitude *" value={form.latitude} onChange={(value) => onChange("latitude", value)} />
+        <NumberInput label="Longitude *" value={form.longitude} onChange={(value) => onChange("longitude", value)} />
         <NumberInput label="Altitude m" value={form.altitude_m} onChange={(value) => onChange("altitude_m", value)} />
         <TextInput label="Ferme" value={form.farm_name} onChange={(value) => onChange("farm_name", value)} />
-        <TextInput label="Code parcelle" value={form.plot_code} onChange={(value) => onChange("plot_code", value)} />
-        <NumberInput label="Surface ha" value={form.surface_ha} onChange={(value) => onChange("surface_ha", value === "" ? 1 : value)} />
+        <TextInput label="Code parcelle *" value={form.plot_code} onChange={(value) => onChange("plot_code", value)} />
+        <NumberInput label="Surface ha *" value={form.surface_ha} onChange={(value) => onChange("surface_ha", value)} />
         <NumberInput label="Pente %" value={form.slope_percent} onChange={(value) => onChange("slope_percent", value)} />
         <SelectInput label="Drainage" value={form.drainage} options={["good", "medium", "poor"]} onChange={(value) => onChange("drainage", value as DrainageLevel)} />
         <TextInput label="Culture precedente" value={form.previous_crop} onChange={(value) => onChange("previous_crop", value)} />
@@ -481,9 +531,9 @@ function ObservationForm({
 
       <div className="section-title">Culture et sol</div>
       <div className="grid three">
-        <TextInput label="Culture" value={form.crop} onChange={(value) => onChange("crop", value)} />
+        <SelectInput label="Culture *" value={form.crop} options={cropOptions} labels={cropLabels} onChange={(value) => onChange("crop", value)} />
         <TextInput label="Variete" value={form.seed_variety} onChange={(value) => onChange("seed_variety", value)} />
-        <TextInput label="Date semis" type="date" value={form.planting_date} onChange={(value) => onChange("planting_date", value)} />
+        <TextInput label="Date semis *" type="date" value={form.planting_date} onChange={(value) => onChange("planting_date", value)} />
         <NumberInput label="Densite / ha" value={form.planting_density_ha} onChange={(value) => onChange("planting_density_ha", value)} />
         <TextInput label="Recolte prevue" type="date" value={form.expected_harvest_date} onChange={(value) => onChange("expected_harvest_date", value)} />
         <SelectInput label="Texture sol" value={form.soil_texture} options={["clay", "sandy", "loamy", "silty", "mixed"]} onChange={(value) => onChange("soil_texture", value as SoilTexture)} />
@@ -670,13 +720,25 @@ function NumberInput({ label, value, onChange }: { label: string; value: number 
   );
 }
 
-function SelectInput({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (value: string) => void }) {
+function SelectInput({
+  label,
+  value,
+  options,
+  labels,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  labels?: Record<string, string>;
+  onChange: (value: string) => void;
+}) {
   return (
     <label className="field">
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map((option) => (
-          <option key={option} value={option}>{option}</option>
+          <option key={option} value={option}>{labels?.[option] ?? option}</option>
         ))}
       </select>
     </label>
