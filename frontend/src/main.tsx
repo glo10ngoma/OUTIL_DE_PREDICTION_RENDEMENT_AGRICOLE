@@ -1,10 +1,23 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { AlertTriangle, BarChart3, CheckCircle2, Database, Leaf, Loader2, Plus, RefreshCw, Sprout } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  Database,
+  FileText,
+  Leaf,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Sprout,
+} from "lucide-react";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
+type View = "dashboard" | "observations" | "new-observation" | "prediction";
 type PressureLevel = "low" | "medium" | "high";
 type DrainageLevel = "good" | "medium" | "poor";
 type SoilTexture = "clay" | "sandy" | "loamy" | "silty" | "mixed";
@@ -70,42 +83,44 @@ type YieldPrediction = {
 
 const today = new Date().toISOString().slice(0, 10);
 
-const initialForm: FieldObservationForm = {
-  observation_code: `OBS-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
-  observation_date: today,
-  agent_name: "Agent Demo",
-  province: "Province Demo",
-  territory: "Territoire Demo",
-  village: "Village Demo",
-  latitude: -4.123,
-  longitude: 15.456,
-  altitude_m: 120,
-  farm_name: "Ferme Demo",
-  plot_code: "PLOT-DEMO-001",
-  surface_ha: 1,
-  slope_percent: 3,
-  drainage: "good",
-  previous_crop: "manioc",
-  crop: "maize",
-  seed_variety: "locale amelioree",
-  planting_date: today,
-  planting_density_ha: 50000,
-  expected_harvest_date: today,
-  soil_texture: "loamy",
-  soil_ph: 6.2,
-  organic_matter_percent: 3,
-  nitrogen_mg_kg: 25,
-  phosphorus_mg_kg: 15,
-  potassium_mg_kg: 120,
-  soil_moisture_percent: 45,
-  rainfall_mm: 850,
-  temperature_avg_c: 27,
-  fertilizer_kg_ha: 100,
-  irrigation: false,
-  pest_pressure: "low",
-  disease_pressure: "low",
-  notes: "Observation terrain test",
-};
+function createInitialForm(): FieldObservationForm {
+  return {
+    observation_code: `OBS-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
+    observation_date: today,
+    agent_name: "Agent Demo",
+    province: "Province Demo",
+    territory: "Territoire Demo",
+    village: "Village Demo",
+    latitude: -4.123,
+    longitude: 15.456,
+    altitude_m: 120,
+    farm_name: "Ferme Demo",
+    plot_code: "PLOT-DEMO-001",
+    surface_ha: 1,
+    slope_percent: 3,
+    drainage: "good",
+    previous_crop: "manioc",
+    crop: "maize",
+    seed_variety: "locale amelioree",
+    planting_date: today,
+    planting_density_ha: 50000,
+    expected_harvest_date: today,
+    soil_texture: "loamy",
+    soil_ph: 6.2,
+    organic_matter_percent: 3,
+    nitrogen_mg_kg: 25,
+    phosphorus_mg_kg: 15,
+    potassium_mg_kg: 120,
+    soil_moisture_percent: 45,
+    rainfall_mm: 850,
+    temperature_avg_c: 27,
+    fertilizer_kg_ha: 100,
+    irrigation: false,
+    pest_pressure: "low",
+    disease_pressure: "low",
+    notes: "Observation terrain test",
+  };
+}
 
 function cleanPayload(form: FieldObservationForm) {
   return Object.fromEntries(
@@ -131,7 +146,8 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 function App() {
-  const [form, setForm] = React.useState<FieldObservationForm>(initialForm);
+  const [view, setView] = React.useState<View>("dashboard");
+  const [form, setForm] = React.useState<FieldObservationForm>(() => createInitialForm());
   const [observations, setObservations] = React.useState<FieldObservation[]>([]);
   const [selected, setSelected] = React.useState<FieldObservation | null>(null);
   const [prediction, setPrediction] = React.useState<YieldPrediction | null>(null);
@@ -140,7 +156,7 @@ function App() {
   const [message, setMessage] = React.useState("");
 
   const loadObservations = React.useCallback(async () => {
-    const data = await apiRequest<FieldObservation[]>("/field-observations?limit=20");
+    const data = await apiRequest<FieldObservation[]>("/field-observations?limit=50");
     setObservations(data);
     setSelected((current) => current ?? data[0] ?? null);
   }, []);
@@ -168,6 +184,8 @@ function App() {
       setSelected(created);
       setPrediction(null);
       await loadObservations();
+      setForm(createInitialForm());
+      setView("observations");
       setMessage(`Observation ${created.observation_code} enregistree.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Creation impossible.");
@@ -179,6 +197,7 @@ function App() {
   async function predictFromObservation(observation = selected) {
     if (!observation) {
       setMessage("Cree ou selectionne une observation avant de lancer la prediction.");
+      setView("observations");
       return;
     }
     setLoading(true);
@@ -204,6 +223,7 @@ function App() {
         }),
       });
       setPrediction(result);
+      setView("prediction");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Prediction impossible.");
     } finally {
@@ -226,163 +246,397 @@ function App() {
         </div>
       </header>
 
-      <section className="summary-grid">
-        <Metric icon={<Database size={20} />} label="Observations" value={observations.length.toString()} />
-        <Metric icon={<Sprout size={20} />} label="Culture active" value={selected?.crop ?? form.crop} />
-        <Metric icon={<BarChart3 size={20} />} label="Rendement estime" value={prediction ? `${prediction.estimated_yield_t_ha} t/ha` : "-"} />
-      </section>
+      <nav className="app-nav" aria-label="Navigation principale">
+        <NavButton active={view === "dashboard"} onClick={() => setView("dashboard")} icon={<Leaf size={16} />} label="Accueil" />
+        <NavButton active={view === "observations"} onClick={() => setView("observations")} icon={<Database size={16} />} label="Observations" />
+        <NavButton active={view === "new-observation"} onClick={() => setView("new-observation")} icon={<Plus size={16} />} label="Nouvelle observation" />
+        <NavButton active={view === "prediction"} onClick={() => setView("prediction")} icon={<BarChart3 size={16} />} label="Prediction" />
+      </nav>
 
       {message && <div className="message">{message}</div>}
 
-      <div className="workspace">
-        <form className="panel form-panel" onSubmit={createObservation}>
-          <div className="panel-title">
-            <Leaf size={20} />
-            <h2>Nouvelle observation terrain</h2>
-          </div>
+      {view === "dashboard" && (
+        <DashboardPage
+          observations={observations}
+          selected={selected}
+          latestPredictionLabel={prediction ? `${prediction.estimated_yield_t_ha} t/ha` : "-"}
+          onCreate={() => setView("new-observation")}
+          onObservations={() => setView("observations")}
+          onPredict={() => setView("prediction")}
+        />
+      )}
 
-          <div className="section-title">Identification</div>
-          <div className="grid two">
-            <TextInput label="Code observation" value={form.observation_code} onChange={(value) => updateField("observation_code", value)} />
-            <TextInput label="Date observation" type="date" value={form.observation_date} onChange={(value) => updateField("observation_date", value)} />
-            <TextInput label="Agent" value={form.agent_name} onChange={(value) => updateField("agent_name", value)} />
-            <TextInput label="Province" value={form.province} onChange={(value) => updateField("province", value)} />
-            <TextInput label="Territoire" value={form.territory} onChange={(value) => updateField("territory", value)} />
-            <TextInput label="Village" value={form.village} onChange={(value) => updateField("village", value)} />
-          </div>
+      {view === "observations" && (
+        <ObservationsPage
+          observations={observations}
+          selected={selected}
+          onRefresh={loadObservations}
+          onCreate={() => setView("new-observation")}
+          onSelect={(observation) => {
+            setSelected(observation);
+            setPrediction(null);
+          }}
+          onPredict={(observation) => {
+            setSelected(observation);
+            setPrediction(null);
+            setView("prediction");
+          }}
+        />
+      )}
 
-          <div className="section-title">Parcelle</div>
-          <div className="grid three">
-            <NumberInput label="Latitude" value={form.latitude} onChange={(value) => updateField("latitude", value === "" ? 0 : value)} />
-            <NumberInput label="Longitude" value={form.longitude} onChange={(value) => updateField("longitude", value === "" ? 0 : value)} />
-            <NumberInput label="Altitude m" value={form.altitude_m} onChange={(value) => updateField("altitude_m", value)} />
-            <TextInput label="Ferme" value={form.farm_name} onChange={(value) => updateField("farm_name", value)} />
-            <TextInput label="Code parcelle" value={form.plot_code} onChange={(value) => updateField("plot_code", value)} />
-            <NumberInput label="Surface ha" value={form.surface_ha} onChange={(value) => updateField("surface_ha", value === "" ? 1 : value)} />
-            <NumberInput label="Pente %" value={form.slope_percent} onChange={(value) => updateField("slope_percent", value)} />
-            <SelectInput label="Drainage" value={form.drainage} options={["good", "medium", "poor"]} onChange={(value) => updateField("drainage", value as DrainageLevel)} />
-            <TextInput label="Culture precedente" value={form.previous_crop} onChange={(value) => updateField("previous_crop", value)} />
-          </div>
+      {view === "new-observation" && (
+        <ObservationForm form={form} loading={loading} onSubmit={createObservation} onChange={updateField} />
+      )}
 
-          <div className="section-title">Culture et sol</div>
-          <div className="grid three">
-            <TextInput label="Culture" value={form.crop} onChange={(value) => updateField("crop", value)} />
-            <TextInput label="Variete" value={form.seed_variety} onChange={(value) => updateField("seed_variety", value)} />
-            <TextInput label="Date semis" type="date" value={form.planting_date} onChange={(value) => updateField("planting_date", value)} />
-            <NumberInput label="Densite / ha" value={form.planting_density_ha} onChange={(value) => updateField("planting_density_ha", value)} />
-            <TextInput label="Recolte prevue" type="date" value={form.expected_harvest_date} onChange={(value) => updateField("expected_harvest_date", value)} />
-            <SelectInput label="Texture sol" value={form.soil_texture} options={["clay", "sandy", "loamy", "silty", "mixed"]} onChange={(value) => updateField("soil_texture", value as SoilTexture)} />
-            <NumberInput label="pH sol" value={form.soil_ph} onChange={(value) => updateField("soil_ph", value)} />
-            <NumberInput label="Matiere organique %" value={form.organic_matter_percent} onChange={(value) => updateField("organic_matter_percent", value)} />
-            <NumberInput label="Humidite sol %" value={form.soil_moisture_percent} onChange={(value) => updateField("soil_moisture_percent", value)} />
-            <NumberInput label="Azote mg/kg" value={form.nitrogen_mg_kg} onChange={(value) => updateField("nitrogen_mg_kg", value)} />
-            <NumberInput label="Phosphore mg/kg" value={form.phosphorus_mg_kg} onChange={(value) => updateField("phosphorus_mg_kg", value)} />
-            <NumberInput label="Potassium mg/kg" value={form.potassium_mg_kg} onChange={(value) => updateField("potassium_mg_kg", value)} />
-          </div>
+      {view === "prediction" && (
+        <PredictionPage
+          observations={observations}
+          selected={selected}
+          prediction={prediction}
+          loading={loading}
+          onSelect={(observation) => {
+            setSelected(observation);
+            setPrediction(null);
+          }}
+          onPredict={() => predictFromObservation()}
+          onCreate={() => setView("new-observation")}
+        />
+      )}
+    </main>
+  );
+}
 
-          <div className="section-title">Climat et risques</div>
-          <div className="grid three">
-            <NumberInput label="Pluie mm" value={form.rainfall_mm} onChange={(value) => updateField("rainfall_mm", value)} />
-            <NumberInput label="Temperature C" value={form.temperature_avg_c} onChange={(value) => updateField("temperature_avg_c", value)} />
-            <NumberInput label="Engrais kg/ha" value={form.fertilizer_kg_ha} onChange={(value) => updateField("fertilizer_kg_ha", value)} />
-            <SelectInput label="Ravageurs" value={form.pest_pressure} options={["low", "medium", "high"]} onChange={(value) => updateField("pest_pressure", value as PressureLevel)} />
-            <SelectInput label="Maladies" value={form.disease_pressure} options={["low", "medium", "high"]} onChange={(value) => updateField("disease_pressure", value as PressureLevel)} />
-            <label className="check-row">
-              <input type="checkbox" checked={form.irrigation} onChange={(event) => updateField("irrigation", event.target.checked)} />
-              Irrigation disponible
-            </label>
-          </div>
+function DashboardPage({
+  observations,
+  selected,
+  latestPredictionLabel,
+  onCreate,
+  onObservations,
+  onPredict,
+}: {
+  observations: FieldObservation[];
+  selected: FieldObservation | null;
+  latestPredictionLabel: string;
+  onCreate: () => void;
+  onObservations: () => void;
+  onPredict: () => void;
+}) {
+  return (
+    <>
+      <section className="summary-grid">
+        <Metric icon={<Database size={20} />} label="Observations" value={observations.length.toString()} />
+        <Metric icon={<Sprout size={20} />} label="Culture active" value={selected?.crop ?? "-"} />
+        <Metric icon={<BarChart3 size={20} />} label="Derniere prediction" value={latestPredictionLabel} />
+      </section>
 
-          <label className="field full">
-            <span>Notes</span>
-            <textarea value={form.notes} onChange={(event) => updateField("notes", event.target.value)} />
-          </label>
+      <section className="dashboard-grid">
+        <button className="action-card primary-card" type="button" onClick={onCreate}>
+          <span className="card-icon"><Plus size={22} /></span>
+          <strong>Nouvelle observation</strong>
+          <p>Saisir les donnees terrain d'une parcelle avant analyse.</p>
+          <ArrowRight size={18} />
+        </button>
+        <button className="action-card" type="button" onClick={onObservations}>
+          <span className="card-icon"><FileText size={22} /></span>
+          <strong>Liste des observations</strong>
+          <p>Consulter les observations deja enregistrees et choisir une parcelle.</p>
+          <ArrowRight size={18} />
+        </button>
+        <button className="action-card" type="button" onClick={onPredict}>
+          <span className="card-icon"><BarChart3 size={22} /></span>
+          <strong>Faire une prediction</strong>
+          <p>Selectionner une observation et estimer le rendement agricole.</p>
+          <ArrowRight size={18} />
+        </button>
+      </section>
+    </>
+  );
+}
 
-          <button className="primary" type="submit" disabled={loading}>
-            {loading ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
-            Enregistrer observation
+function ObservationsPage({
+  observations,
+  selected,
+  onRefresh,
+  onCreate,
+  onSelect,
+  onPredict,
+}: {
+  observations: FieldObservation[];
+  selected: FieldObservation | null;
+  onRefresh: () => void;
+  onCreate: () => void;
+  onSelect: (observation: FieldObservation) => void;
+  onPredict: (observation: FieldObservation) => void;
+}) {
+  return (
+    <section className="panel page-panel">
+      <div className="panel-title row-between">
+        <div>
+          <h2>Observations terrain</h2>
+          <p className="muted">Toutes les observations recentes enregistrees dans la base.</p>
+        </div>
+        <div className="toolbar">
+          <button className="ghost" type="button" onClick={onRefresh} title="Actualiser">
+            <RefreshCw size={16} />
           </button>
-        </form>
+          <button className="primary compact" type="button" onClick={onCreate}>
+            <Plus size={16} />
+            Ajouter
+          </button>
+        </div>
+      </div>
 
-        <aside className="side">
-          <section className="panel">
-            <div className="panel-title row-between">
-              <h2>Observations recentes</h2>
-              <button className="ghost" type="button" onClick={() => loadObservations()} title="Actualiser">
-                <RefreshCw size={16} />
-              </button>
-            </div>
-            <div className="list">
-              {observations.length === 0 && <p className="empty">Aucune observation pour le moment.</p>}
+      {observations.length === 0 ? (
+        <div className="empty-state">
+          <Database size={28} />
+          <strong>Aucune observation pour le moment.</strong>
+          <p>Ajoute une premiere observation terrain pour commencer les analyses.</p>
+          <button className="primary compact" type="button" onClick={onCreate}>Nouvelle observation</button>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Culture</th>
+                <th>Province</th>
+                <th>Surface</th>
+                <th>Date</th>
+                <th>Risque</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
               {observations.map((observation) => (
-                <button
-                  key={observation.id}
-                  className={`list-item ${selected?.id === observation.id ? "active" : ""}`}
-                  type="button"
-                  onClick={() => {
-                    setSelected(observation);
-                    setPrediction(null);
-                  }}
-                >
-                  <strong>{observation.observation_code}</strong>
-                  <span>{observation.crop} · {observation.province}</span>
-                  <small>{observation.surface_ha} ha · {observation.observation_date}</small>
-                </button>
+                <tr key={observation.id} className={selected?.id === observation.id ? "selected-row" : ""}>
+                  <td>
+                    <button className="text-button" type="button" onClick={() => onSelect(observation)}>
+                      {observation.observation_code}
+                    </button>
+                  </td>
+                  <td>{observation.crop}</td>
+                  <td>{observation.province}</td>
+                  <td>{observation.surface_ha} ha</td>
+                  <td>{observation.observation_date}</td>
+                  <td>{observation.pest_pressure}/{observation.disease_pressure}</td>
+                  <td>
+                    <button className="secondary" type="button" onClick={() => onPredict(observation)}>
+                      Predire
+                    </button>
+                  </td>
+                </tr>
               ))}
-            </div>
-          </section>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
 
-          <section className="panel">
-            <div className="panel-title">
-              <BarChart3 size={20} />
-              <h2>Prediction</h2>
-            </div>
-            {selected ? (
-              <>
-                <div className="selected-box">
-                  <span>Observation selectionnee</span>
-                  <strong>{selected.observation_code}</strong>
-                  <p>{selected.crop} sur {selected.surface_ha} ha a {selected.province}</p>
-                </div>
-                <button className="primary wide" type="button" onClick={() => predictFromObservation()} disabled={loading}>
-                  {loading ? <Loader2 size={16} className="spin" /> : <BarChart3 size={16} />}
-                  Predire le rendement
-                </button>
-              </>
-            ) : (
-              <p className="empty">Selectionne une observation pour lancer la prediction.</p>
-            )}
+function ObservationForm({
+  form,
+  loading,
+  onSubmit,
+  onChange,
+}: {
+  form: FieldObservationForm;
+  loading: boolean;
+  onSubmit: (event: React.FormEvent) => void;
+  onChange: <K extends keyof FieldObservationForm>(key: K, value: FieldObservationForm[K]) => void;
+}) {
+  return (
+    <form className="panel form-panel" onSubmit={onSubmit}>
+      <div className="panel-title">
+        <Leaf size={20} />
+        <div>
+          <h2>Nouvelle observation terrain</h2>
+          <p className="muted">Renseigne la parcelle, la culture, le sol et les conditions terrain.</p>
+        </div>
+      </div>
 
-            {prediction && (
-              <div className="prediction-card">
-                <div>
-                  <span>Rendement estime</span>
-                  <strong>{prediction.estimated_yield_t_ha} t/ha</strong>
-                </div>
-                <div>
-                  <span>Production totale</span>
-                  <strong>{prediction.estimated_total_tons} t</strong>
-                </div>
-                <div>
-                  <span>Confiance</span>
-                  <strong>{Math.round(prediction.confidence_score * 100)}%</strong>
-                </div>
-                <div>
-                  <span>Risque</span>
-                  <strong className={`risk ${prediction.risk_level}`}>{prediction.risk_level}</strong>
-                </div>
-                <ul>
-                  {prediction.main_factors.map((factor) => (
-                    <li key={factor}>{factor}</li>
-                  ))}
-                </ul>
-                <p>{prediction.recommendation}</p>
+      <div className="section-title">Identification</div>
+      <div className="grid two">
+        <TextInput label="Code observation" value={form.observation_code} onChange={(value) => onChange("observation_code", value)} />
+        <TextInput label="Date observation" type="date" value={form.observation_date} onChange={(value) => onChange("observation_date", value)} />
+        <TextInput label="Agent" value={form.agent_name} onChange={(value) => onChange("agent_name", value)} />
+        <TextInput label="Province" value={form.province} onChange={(value) => onChange("province", value)} />
+        <TextInput label="Territoire" value={form.territory} onChange={(value) => onChange("territory", value)} />
+        <TextInput label="Village" value={form.village} onChange={(value) => onChange("village", value)} />
+      </div>
+
+      <div className="section-title">Parcelle</div>
+      <div className="grid three">
+        <NumberInput label="Latitude" value={form.latitude} onChange={(value) => onChange("latitude", value === "" ? 0 : value)} />
+        <NumberInput label="Longitude" value={form.longitude} onChange={(value) => onChange("longitude", value === "" ? 0 : value)} />
+        <NumberInput label="Altitude m" value={form.altitude_m} onChange={(value) => onChange("altitude_m", value)} />
+        <TextInput label="Ferme" value={form.farm_name} onChange={(value) => onChange("farm_name", value)} />
+        <TextInput label="Code parcelle" value={form.plot_code} onChange={(value) => onChange("plot_code", value)} />
+        <NumberInput label="Surface ha" value={form.surface_ha} onChange={(value) => onChange("surface_ha", value === "" ? 1 : value)} />
+        <NumberInput label="Pente %" value={form.slope_percent} onChange={(value) => onChange("slope_percent", value)} />
+        <SelectInput label="Drainage" value={form.drainage} options={["good", "medium", "poor"]} onChange={(value) => onChange("drainage", value as DrainageLevel)} />
+        <TextInput label="Culture precedente" value={form.previous_crop} onChange={(value) => onChange("previous_crop", value)} />
+      </div>
+
+      <div className="section-title">Culture et sol</div>
+      <div className="grid three">
+        <TextInput label="Culture" value={form.crop} onChange={(value) => onChange("crop", value)} />
+        <TextInput label="Variete" value={form.seed_variety} onChange={(value) => onChange("seed_variety", value)} />
+        <TextInput label="Date semis" type="date" value={form.planting_date} onChange={(value) => onChange("planting_date", value)} />
+        <NumberInput label="Densite / ha" value={form.planting_density_ha} onChange={(value) => onChange("planting_density_ha", value)} />
+        <TextInput label="Recolte prevue" type="date" value={form.expected_harvest_date} onChange={(value) => onChange("expected_harvest_date", value)} />
+        <SelectInput label="Texture sol" value={form.soil_texture} options={["clay", "sandy", "loamy", "silty", "mixed"]} onChange={(value) => onChange("soil_texture", value as SoilTexture)} />
+        <NumberInput label="pH sol" value={form.soil_ph} onChange={(value) => onChange("soil_ph", value)} />
+        <NumberInput label="Matiere organique %" value={form.organic_matter_percent} onChange={(value) => onChange("organic_matter_percent", value)} />
+        <NumberInput label="Humidite sol %" value={form.soil_moisture_percent} onChange={(value) => onChange("soil_moisture_percent", value)} />
+        <NumberInput label="Azote mg/kg" value={form.nitrogen_mg_kg} onChange={(value) => onChange("nitrogen_mg_kg", value)} />
+        <NumberInput label="Phosphore mg/kg" value={form.phosphorus_mg_kg} onChange={(value) => onChange("phosphorus_mg_kg", value)} />
+        <NumberInput label="Potassium mg/kg" value={form.potassium_mg_kg} onChange={(value) => onChange("potassium_mg_kg", value)} />
+      </div>
+
+      <div className="section-title">Climat et risques</div>
+      <div className="grid three">
+        <NumberInput label="Pluie mm" value={form.rainfall_mm} onChange={(value) => onChange("rainfall_mm", value)} />
+        <NumberInput label="Temperature C" value={form.temperature_avg_c} onChange={(value) => onChange("temperature_avg_c", value)} />
+        <NumberInput label="Engrais kg/ha" value={form.fertilizer_kg_ha} onChange={(value) => onChange("fertilizer_kg_ha", value)} />
+        <SelectInput label="Ravageurs" value={form.pest_pressure} options={["low", "medium", "high"]} onChange={(value) => onChange("pest_pressure", value as PressureLevel)} />
+        <SelectInput label="Maladies" value={form.disease_pressure} options={["low", "medium", "high"]} onChange={(value) => onChange("disease_pressure", value as PressureLevel)} />
+        <label className="check-row">
+          <input type="checkbox" checked={form.irrigation} onChange={(event) => onChange("irrigation", event.target.checked)} />
+          Irrigation disponible
+        </label>
+      </div>
+
+      <label className="field full">
+        <span>Notes</span>
+        <textarea value={form.notes} onChange={(event) => onChange("notes", event.target.value)} />
+      </label>
+
+      <button className="primary" type="submit" disabled={loading}>
+        {loading ? <Loader2 size={16} className="spin" /> : <Plus size={16} />}
+        Enregistrer observation
+      </button>
+    </form>
+  );
+}
+
+function PredictionPage({
+  observations,
+  selected,
+  prediction,
+  loading,
+  onSelect,
+  onPredict,
+  onCreate,
+}: {
+  observations: FieldObservation[];
+  selected: FieldObservation | null;
+  prediction: YieldPrediction | null;
+  loading: boolean;
+  onSelect: (observation: FieldObservation) => void;
+  onPredict: () => void;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="prediction-layout">
+      <section className="panel">
+        <div className="panel-title">
+          <BarChart3 size={20} />
+          <div>
+            <h2>Prediction de rendement</h2>
+            <p className="muted">Choisis une observation, puis lance l'estimation.</p>
+          </div>
+        </div>
+
+        {observations.length === 0 ? (
+          <div className="empty-state">
+            <Sprout size={28} />
+            <strong>Aucune observation disponible.</strong>
+            <p>La prediction se base sur une observation terrain enregistree.</p>
+            <button className="primary compact" type="button" onClick={onCreate}>Creer une observation</button>
+          </div>
+        ) : (
+          <>
+            <label className="field">
+              <span>Observation a analyser</span>
+              <select
+                value={selected?.id ?? ""}
+                onChange={(event) => {
+                  const next = observations.find((observation) => observation.id === Number(event.target.value));
+                  if (next) onSelect(next);
+                }}
+              >
+                <option value="" disabled>Selectionner une observation</option>
+                {observations.map((observation) => (
+                  <option key={observation.id} value={observation.id}>
+                    {observation.observation_code} - {observation.crop} - {observation.province}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {selected && (
+              <div className="selected-box spacious">
+                <span>Observation selectionnee</span>
+                <strong>{selected.observation_code}</strong>
+                <p>{selected.crop} sur {selected.surface_ha} ha a {selected.province}</p>
+                <small>Sol {selected.soil_texture}, pluie {selected.rainfall_mm ?? "-"} mm, engrais {selected.fertilizer_kg_ha ?? "-"} kg/ha</small>
               </div>
             )}
-          </section>
-        </aside>
-      </div>
-    </main>
+
+            <button className="primary wide" type="button" onClick={onPredict} disabled={loading || !selected}>
+              {loading ? <Loader2 size={16} className="spin" /> : <BarChart3 size={16} />}
+              Predire le rendement
+            </button>
+          </>
+        )}
+      </section>
+
+      <section className="panel result-panel">
+        <div className="panel-title">
+          <FileText size={20} />
+          <h2>Resultat</h2>
+        </div>
+        {prediction ? (
+          <div className="prediction-card">
+            <div>
+              <span>Rendement estime</span>
+              <strong>{prediction.estimated_yield_t_ha} t/ha</strong>
+            </div>
+            <div>
+              <span>Production totale</span>
+              <strong>{prediction.estimated_total_tons} t</strong>
+            </div>
+            <div>
+              <span>Confiance</span>
+              <strong>{Math.round(prediction.confidence_score * 100)}%</strong>
+            </div>
+            <div>
+              <span>Risque</span>
+              <strong className={`risk ${prediction.risk_level}`}>{prediction.risk_level}</strong>
+            </div>
+            <ul>
+              {prediction.main_factors.map((factor) => (
+                <li key={factor}>{factor}</li>
+              ))}
+            </ul>
+            <p>{prediction.recommendation}</p>
+          </div>
+        ) : (
+          <p className="empty">Aucune prediction lancee pour le moment.</p>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function NavButton({ active, icon, label, onClick }: { active: boolean; icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button className={`nav-button ${active ? "active" : ""}`} type="button" onClick={onClick}>
+      {icon}
+      {label}
+    </button>
   );
 }
 
