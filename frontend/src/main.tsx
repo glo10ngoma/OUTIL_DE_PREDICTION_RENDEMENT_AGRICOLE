@@ -569,6 +569,15 @@ function ObservationForm({
   onSubmit: (event: React.FormEvent) => void;
   onChange: <K extends keyof FieldObservationForm>(key: K, value: FieldObservationForm[K]) => void;
 }) {
+  const usesVetiver =
+    form.cultivation_practice === "vetiver_hedgerows" || form.secondary_practice === "vetiver_hedgerows";
+
+  function clearVetiverFields() {
+    onChange("vetiver_installed", false);
+    onChange("vetiver_age_months", "");
+    onChange("vetiver_spacing_m", "");
+  }
+
   return (
     <form className="panel form-panel" onSubmit={onSubmit}>
       <div className="panel-title">
@@ -641,7 +650,11 @@ function ObservationForm({
           onChange={(value) => {
             const practice = value as CultivationPractice;
             onChange("cultivation_practice", practice);
-            if (practice === "vetiver_hedgerows") onChange("vetiver_installed", true);
+            if (practice === "vetiver_hedgerows") {
+              onChange("vetiver_installed", true);
+            } else if (form.secondary_practice !== "vetiver_hedgerows") {
+              clearVetiverFields();
+            }
           }}
         />
         <SelectInput
@@ -649,18 +662,37 @@ function ObservationForm({
           value={form.secondary_practice}
           options={secondaryPracticeOptions}
           labels={practiceLabels}
-          onChange={(value) => onChange("secondary_practice", value as CultivationPractice | "")}
+          onChange={(value) => {
+            const practice = value as CultivationPractice | "";
+            onChange("secondary_practice", practice);
+            if (practice === "vetiver_hedgerows") {
+              onChange("vetiver_installed", true);
+            } else if (form.cultivation_practice !== "vetiver_hedgerows") {
+              clearVetiverFields();
+            }
+          }}
         />
         <label className="check-row">
           <input
             type="checkbox"
-            checked={form.vetiver_installed}
+            checked={usesVetiver && form.vetiver_installed}
+            disabled={!usesVetiver}
             onChange={(event) => onChange("vetiver_installed", event.target.checked)}
           />
           Vetiver installe
         </label>
-        <NumberInput label="Age du vetiver mois" value={form.vetiver_age_months} onChange={(value) => onChange("vetiver_age_months", value)} />
-        <NumberInput label="Distance bandes vetiver m" value={form.vetiver_spacing_m} onChange={(value) => onChange("vetiver_spacing_m", value)} />
+        <NumberInput
+          label="Age du vetiver mois"
+          value={form.vetiver_age_months}
+          disabled={!usesVetiver}
+          onChange={(value) => onChange("vetiver_age_months", value)}
+        />
+        <NumberInput
+          label="Distance bandes vetiver m"
+          value={form.vetiver_spacing_m}
+          disabled={!usesVetiver}
+          onChange={(value) => onChange("vetiver_spacing_m", value)}
+        />
       </div>
 
       <label className="field full">
@@ -823,11 +855,27 @@ function TextInput({ label, value, onChange, type = "text" }: { label: string; v
   );
 }
 
-function NumberInput({ label, value, onChange }: { label: string; value: number | ""; onChange: (value: number | "") => void }) {
+function NumberInput({
+  label,
+  value,
+  disabled = false,
+  onChange,
+}: {
+  label: string;
+  value: number | "";
+  disabled?: boolean;
+  onChange: (value: number | "") => void;
+}) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input type="number" step="any" value={value} onChange={(event) => onChange(event.target.value === "" ? "" : Number(event.target.value))} />
+      <input
+        type="number"
+        step="any"
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value === "" ? "" : Number(event.target.value))}
+      />
     </label>
   );
 }
