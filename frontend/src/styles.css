@@ -36,6 +36,35 @@ main {
   margin-bottom: 20px;
 }
 
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  border: 1px solid #dce5d7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.nav-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #415549;
+  cursor: pointer;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.nav-button.active {
+  background: #e9f4e9;
+  color: #1f6b35;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: #58705f;
@@ -125,6 +154,62 @@ h2 {
   color: #37543f;
 }
 
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.action-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  min-height: 170px;
+  border: 1px solid #dce5d7;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #14221a;
+  cursor: pointer;
+  padding: 18px;
+  text-align: left;
+}
+
+.action-card .card-icon,
+.action-card > strong,
+.action-card > p {
+  grid-column: 1 / -1;
+}
+
+.action-card .card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: #edf4eb;
+  color: #2f7d46;
+}
+
+.action-card strong {
+  font-size: 20px;
+}
+
+.action-card p,
+.muted {
+  color: #68786c;
+}
+
+.action-card svg:last-child {
+  align-self: end;
+  color: #2f7d46;
+}
+
+.action-card.primary-card {
+  border-color: #2f7d46;
+  background: #f3faf1;
+}
+
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 390px;
@@ -134,6 +219,10 @@ h2 {
 
 .panel {
   padding: 18px;
+}
+
+.page-panel {
+  overflow: hidden;
 }
 
 .form-panel {
@@ -155,7 +244,14 @@ h2 {
 }
 
 .row-between {
+  align-items: flex-start;
   justify-content: space-between;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .section-title {
@@ -257,6 +353,30 @@ textarea {
   width: 100%;
 }
 
+.primary.compact {
+  margin-top: 0;
+  padding: 10px 13px;
+}
+
+.secondary {
+  border: 1px solid #cdd9c8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #246b38;
+  cursor: pointer;
+  padding: 8px 11px;
+  font-weight: 800;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #1f6b35;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 800;
+}
+
 .ghost {
   display: inline-flex;
   align-items: center;
@@ -298,6 +418,50 @@ textarea {
   color: #68786c;
 }
 
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  border: 1px dashed #cdd9c8;
+  border-radius: 8px;
+  background: #fbfcfa;
+  padding: 38px 18px;
+  color: #68786c;
+  text-align: center;
+}
+
+.empty-state strong {
+  color: #14221a;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e4eadf;
+  padding: 12px 10px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  color: #516258;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.selected-row {
+  background: #f2f8ef;
+}
+
 .selected-box {
   display: grid;
   gap: 4px;
@@ -305,6 +469,21 @@ textarea {
   border-radius: 8px;
   background: #f4f8f1;
   padding: 12px;
+}
+
+.selected-box.spacious {
+  margin: 14px 0;
+}
+
+.prediction-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.result-panel {
+  min-height: 260px;
 }
 
 .prediction-card {
@@ -368,6 +547,11 @@ textarea {
   .side {
     position: static;
   }
+
+  .dashboard-grid,
+  .prediction-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -375,13 +559,13 @@ textarea {
     padding: 16px;
   }
 
-  .topbar,
-  .summary-grid {
-    grid-template-columns: 1fr;
-  }
-
   .topbar {
     display: grid;
+  }
+
+  .toolbar {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .grid.two,
@@ -389,6 +573,10 @@ textarea {
   .summary-grid,
   .prediction-card {
     grid-template-columns: 1fr;
+  }
+
+  .app-nav {
+    display: grid;
   }
 
   h1 {
