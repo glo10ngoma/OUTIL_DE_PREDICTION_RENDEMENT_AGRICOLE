@@ -275,6 +275,10 @@ h2 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
 .field {
   display: grid;
   gap: 6px;
@@ -376,6 +380,12 @@ textarea {
   font-weight: 800;
 }
 
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .text-button {
   border: 0;
   background: transparent;
@@ -442,6 +452,16 @@ textarea {
   color: #14221a;
 }
 
+.empty-state.error-state {
+  border-color: #f2b8b5;
+  background: #fff8f7;
+}
+
+.empty-state.error-state svg,
+.empty-state.error-state strong {
+  color: #b42318;
+}
+
 .table-wrap {
   overflow-x: auto;
 }
@@ -468,6 +488,12 @@ th {
 
 .selected-row {
   background: #f2f8ef;
+}
+
+.yield-panel {
+  margin-top: 18px;
+  border-top: 1px solid #e4eadf;
+  padding-top: 18px;
 }
 
 .selected-box {
@@ -578,6 +604,7 @@ th {
 
   .grid.two,
   .grid.three,
+  .grid.four,
   .summary-grid,
   .prediction-card {
     grid-template-columns: 1fr;
