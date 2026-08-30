@@ -20,6 +20,23 @@ class SoilTexture(StrEnum):
     mixed = "mixed"
 
 
+class CultivationPractice(StrEnum):
+    vetiver_hedgerows = "vetiver_hedgerows"
+    slash_and_burn = "slash_and_burn"
+    conventional_tillage = "conventional_tillage"
+    no_till = "no_till"
+    mulching = "mulching"
+    crop_rotation = "crop_rotation"
+    intercropping = "intercropping"
+    improved_fallow = "improved_fallow"
+    agroforestry = "agroforestry"
+    contour_farming = "contour_farming"
+    terracing = "terracing"
+    organic_amendment = "organic_amendment"
+    supplemental_irrigation = "supplemental_irrigation"
+    other = "other"
+
+
 class FieldObservationBase(BaseModel):
     observation_code: str = Field(..., min_length=3, max_length=50, examples=["OBS-2026-0001"])
     observation_date: date
@@ -59,6 +76,12 @@ class FieldObservationBase(BaseModel):
     irrigation: bool = False
     pest_pressure: PressureLevel = PressureLevel.low
     disease_pressure: PressureLevel = PressureLevel.low
+    cultivation_practice: CultivationPractice | None = None
+    secondary_practice: CultivationPractice | None = None
+    vetiver_installed: bool = False
+    vetiver_age_months: float | None = Field(default=None, ge=0)
+    vetiver_spacing_m: float | None = Field(default=None, gt=0)
+    method_notes: str | None = None
 
     notes: str | None = None
 

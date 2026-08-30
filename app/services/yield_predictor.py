@@ -1,4 +1,4 @@
-from app.schemas.prediction import PressureLevel, YieldPredictionRequest, YieldPredictionResponse
+from app.schemas.prediction import CultivationPractice, PressureLevel, YieldPredictionRequest, YieldPredictionResponse
 
 
 class YieldPredictor:
@@ -71,6 +71,10 @@ class YieldPredictor:
             score *= 1.05
             factors.append("irrigation disponible")
 
+        practice_multiplier, practice_factors = self._practice_effect(payload)
+        score *= practice_multiplier
+        factors.extend(practice_factors)
+
         risk_penalty = self._pressure_penalty(payload.pest_pressure) * self._pressure_penalty(
             payload.disease_pressure
         )
@@ -105,6 +109,78 @@ class YieldPredictor:
         }
         return penalties[pressure]
 
+    def _practice_effect(self, payload: YieldPredictionRequest) -> tuple[float, list[str]]:
+        practices = {
+            practice
+            for practice in [payload.cultivation_practice, payload.secondary_practice]
+            if practice is not None
+        }
+        multiplier = 1.0
+        factors: list[str] = []
+        slope = payload.slope_percent or 0
+        vetiver_active = payload.vetiver_installed or CultivationPractice.vetiver_hedgerows in practices
+
+        if vetiver_active:
+            vetiver_bonus = 1.04
+            if slope >= 5:
+                vetiver_bonus += 0.04
+            if payload.vetiver_age_months is not None and payload.vetiver_age_months >= 12:
+                vetiver_bonus += 0.03
+            if payload.vetiver_spacing_m is not None and payload.vetiver_spacing_m <= 20:
+                vetiver_bonus += 0.02
+            multiplier *= vetiver_bonus
+            factors.append("haies de vetiver pour conservation eau/sol")
+
+        if CultivationPractice.mulching in practices:
+            multiplier *= 1.05
+            factors.append("paillage et couverture du sol")
+
+        if CultivationPractice.crop_rotation in practices:
+            multiplier *= 1.04
+            factors.append("rotation culturale favorable")
+
+        if CultivationPractice.intercropping in practices:
+            multiplier *= 1.03
+            factors.append("association culturale")
+
+        if CultivationPractice.organic_amendment in practices:
+            multiplier *= 1.06
+            factors.append("apport organique")
+
+        if CultivationPractice.no_till in practices:
+            multiplier *= 1.03
+            factors.append("semis direct ou perturbation minimale du sol")
+
+        if CultivationPractice.agroforestry in practices:
+            multiplier *= 1.04
+            factors.append("agroforesterie")
+
+        if CultivationPractice.contour_farming in practices:
+            multiplier *= 1.05 if slope >= 5 else 1.02
+            factors.append("culture en courbes de niveau")
+
+        if CultivationPractice.terracing in practices:
+            multiplier *= 1.07 if slope >= 8 else 1.03
+            factors.append("terrasses anti-erosives")
+
+        if CultivationPractice.improved_fallow in practices:
+            multiplier *= 1.04
+            factors.append("jachere amelioree")
+
+        if CultivationPractice.supplemental_irrigation in practices:
+            multiplier *= 1.05
+            factors.append("irrigation complementaire")
+
+        if CultivationPractice.slash_and_burn in practices:
+            multiplier *= 0.96
+            factors.append("culture sur brulis a surveiller")
+
+        if CultivationPractice.conventional_tillage in practices and slope >= 5:
+            multiplier *= 0.97
+            factors.append("labour classique sur pente")
+
+        return multiplier, factors[:4]
+
     def _risk_level(self, payload: YieldPredictionRequest) -> str:
         risk_points = 0
         if payload.pest_pressure == PressureLevel.medium:
@@ -120,6 +196,24 @@ class YieldPredictor:
         if payload.rainfall_mm is not None and payload.rainfall_mm < 500:
             risk_points += 2
         if payload.soil_ph is not None and not 5.5 <= payload.soil_ph <= 7.2:
+            risk_points += 1
+        if payload.cultivation_practice == CultivationPractice.slash_and_burn:
+            risk_points += 1
+        if payload.slope_percent is not None and payload.slope_percent >= 8 and not (
+            payload.vetiver_installed
+            or payload.cultivation_practice
+            in {
+                CultivationPractice.vetiver_hedgerows,
+                CultivationPractice.contour_farming,
+                CultivationPractice.terracing,
+            }
+            or payload.secondary_practice
+            in {
+                CultivationPractice.vetiver_hedgerows,
+                CultivationPractice.contour_farming,
+                CultivationPractice.terracing,
+            }
+        ):
             risk_points += 1
 
         if risk_points >= 4:
@@ -139,6 +233,8 @@ class YieldPredictor:
                 payload.fertilizer_kg_ha,
                 payload.planting_density_ha,
                 payload.previous_yield_t_ha,
+                payload.slope_percent,
+                payload.cultivation_practice,
             ]
         )
         return round(min(0.35 + available_fields * 0.07, 0.85), 2)

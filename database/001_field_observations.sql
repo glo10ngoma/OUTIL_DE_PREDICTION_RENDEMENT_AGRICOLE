@@ -42,6 +42,12 @@ create table if not exists field_observations (
     irrigation boolean not null default false,
     pest_pressure varchar(20) not null default 'low',
     disease_pressure varchar(20) not null default 'low',
+    cultivation_practice varchar(80),
+    secondary_practice varchar(80),
+    vetiver_installed boolean not null default false,
+    vetiver_age_months double precision check (vetiver_age_months is null or vetiver_age_months >= 0),
+    vetiver_spacing_m double precision check (vetiver_spacing_m is null or vetiver_spacing_m > 0),
+    method_notes text,
 
     harvest_date date,
     actual_yield_t_ha double precision check (actual_yield_t_ha is null or actual_yield_t_ha >= 0),
@@ -63,6 +69,42 @@ create table if not exists field_observations (
     constraint field_observations_pressure_check check (
         pest_pressure in ('low', 'medium', 'high')
         and disease_pressure in ('low', 'medium', 'high')
+    ),
+    constraint field_observations_cultivation_practice_check check (
+        cultivation_practice is null or cultivation_practice in (
+            'vetiver_hedgerows',
+            'slash_and_burn',
+            'conventional_tillage',
+            'no_till',
+            'mulching',
+            'crop_rotation',
+            'intercropping',
+            'improved_fallow',
+            'agroforestry',
+            'contour_farming',
+            'terracing',
+            'organic_amendment',
+            'supplemental_irrigation',
+            'other'
+        )
+    ),
+    constraint field_observations_secondary_practice_check check (
+        secondary_practice is null or secondary_practice in (
+            'vetiver_hedgerows',
+            'slash_and_burn',
+            'conventional_tillage',
+            'no_till',
+            'mulching',
+            'crop_rotation',
+            'intercropping',
+            'improved_fallow',
+            'agroforestry',
+            'contour_farming',
+            'terracing',
+            'organic_amendment',
+            'supplemental_irrigation',
+            'other'
+        )
     )
 );
 
@@ -70,6 +112,8 @@ create index if not exists idx_field_observations_crop on field_observations (cr
 create index if not exists idx_field_observations_province on field_observations (province);
 create index if not exists idx_field_observations_plot_code on field_observations (plot_code);
 create index if not exists idx_field_observations_observation_date on field_observations (observation_date desc);
+create index if not exists idx_field_observations_cultivation_practice on field_observations (cultivation_practice);
+create index if not exists idx_field_observations_vetiver_installed on field_observations (vetiver_installed);
 
 create or replace function set_updated_at()
 returns trigger as $$

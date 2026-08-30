@@ -48,6 +48,12 @@ class FieldObservation(Base):
     irrigation: Mapped[bool] = mapped_column(Boolean, default=False)
     pest_pressure: Mapped[str] = mapped_column(String(20), default="low")
     disease_pressure: Mapped[str] = mapped_column(String(20), default="low")
+    cultivation_practice: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    secondary_practice: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    vetiver_installed: Mapped[bool] = mapped_column(Boolean, default=False)
+    vetiver_age_months: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vetiver_spacing_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    method_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     harvest_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     actual_yield_t_ha: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -21,6 +21,21 @@ type View = "dashboard" | "observations" | "new-observation" | "prediction";
 type PressureLevel = "low" | "medium" | "high";
 type DrainageLevel = "good" | "medium" | "poor";
 type SoilTexture = "clay" | "sandy" | "loamy" | "silty" | "mixed";
+type CultivationPractice =
+  | "vetiver_hedgerows"
+  | "slash_and_burn"
+  | "conventional_tillage"
+  | "no_till"
+  | "mulching"
+  | "crop_rotation"
+  | "intercropping"
+  | "improved_fallow"
+  | "agroforestry"
+  | "contour_farming"
+  | "terracing"
+  | "organic_amendment"
+  | "supplemental_irrigation"
+  | "other";
 
 type FieldObservationForm = {
   observation_code: string;
@@ -56,6 +71,12 @@ type FieldObservationForm = {
   irrigation: boolean;
   pest_pressure: PressureLevel;
   disease_pressure: PressureLevel;
+  cultivation_practice: CultivationPractice;
+  secondary_practice: CultivationPractice | "";
+  vetiver_installed: boolean;
+  vetiver_age_months: number | "";
+  vetiver_spacing_m: number | "";
+  method_notes: string;
   notes: string;
 };
 
@@ -115,6 +136,43 @@ const cropLabels: Record<string, string> = {
   rubber: "Hevea",
 };
 
+const practiceOptions: CultivationPractice[] = [
+  "vetiver_hedgerows",
+  "mulching",
+  "crop_rotation",
+  "intercropping",
+  "organic_amendment",
+  "no_till",
+  "agroforestry",
+  "contour_farming",
+  "terracing",
+  "improved_fallow",
+  "supplemental_irrigation",
+  "conventional_tillage",
+  "slash_and_burn",
+  "other",
+];
+
+const secondaryPracticeOptions = ["", ...practiceOptions];
+
+const practiceLabels: Record<string, string> = {
+  "": "Aucune",
+  vetiver_hedgerows: "Haies vives de vetiver",
+  slash_and_burn: "Culture sur brulis",
+  conventional_tillage: "Labour classique",
+  no_till: "Semis direct / non-labour",
+  mulching: "Paillage / couverture du sol",
+  crop_rotation: "Rotation culturale",
+  intercropping: "Association culturale",
+  improved_fallow: "Jachere amelioree",
+  agroforestry: "Agroforesterie",
+  contour_farming: "Culture en courbes de niveau",
+  terracing: "Terrasses anti-erosives",
+  organic_amendment: "Compost / fumier",
+  supplemental_irrigation: "Irrigation complementaire",
+  other: "Autre",
+};
+
 function createInitialForm(): FieldObservationForm {
   return {
     observation_code: `OBS-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`,
@@ -150,6 +208,12 @@ function createInitialForm(): FieldObservationForm {
     irrigation: false,
     pest_pressure: "low",
     disease_pressure: "low",
+    cultivation_practice: "vetiver_hedgerows",
+    secondary_practice: "",
+    vetiver_installed: true,
+    vetiver_age_months: "",
+    vetiver_spacing_m: "",
+    method_notes: "",
     notes: "",
   };
 }
@@ -217,6 +281,7 @@ function App() {
       ["surface_ha", "Surface ha"],
       ["crop", "Culture"],
       ["planting_date", "Date semis"],
+      ["cultivation_practice", "Technique principale"],
     ];
     const missing = requiredFields
       .filter(([key]) => form[key] === "" || form[key] === null || form[key] === undefined)
@@ -270,6 +335,12 @@ function App() {
           planting_density_ha: observation.planting_density_ha,
           seed_variety: observation.seed_variety,
           previous_yield_t_ha: observation.actual_yield_t_ha,
+          slope_percent: observation.slope_percent,
+          cultivation_practice: observation.cultivation_practice,
+          secondary_practice: observation.secondary_practice,
+          vetiver_installed: observation.vetiver_installed,
+          vetiver_age_months: observation.vetiver_age_months,
+          vetiver_spacing_m: observation.vetiver_spacing_m,
         }),
       });
       setPrediction(result);
@@ -450,6 +521,7 @@ function ObservationsPage({
               <tr>
                 <th>Code</th>
                 <th>Culture</th>
+                <th>Methode</th>
                 <th>Province</th>
                 <th>Surface</th>
                 <th>Date</th>
@@ -466,6 +538,7 @@ function ObservationsPage({
                     </button>
                   </td>
                   <td>{observation.crop}</td>
+                  <td>{practiceLabels[observation.cultivation_practice] ?? observation.cultivation_practice ?? "-"}</td>
                   <td>{observation.province}</td>
                   <td>{observation.surface_ha} ha</td>
                   <td>{observation.observation_date}</td>
@@ -558,6 +631,43 @@ function ObservationForm({
         </label>
       </div>
 
+      <div className="section-title">Methode culturale</div>
+      <div className="grid three">
+        <SelectInput
+          label="Technique principale *"
+          value={form.cultivation_practice}
+          options={practiceOptions}
+          labels={practiceLabels}
+          onChange={(value) => {
+            const practice = value as CultivationPractice;
+            onChange("cultivation_practice", practice);
+            if (practice === "vetiver_hedgerows") onChange("vetiver_installed", true);
+          }}
+        />
+        <SelectInput
+          label="Technique secondaire"
+          value={form.secondary_practice}
+          options={secondaryPracticeOptions}
+          labels={practiceLabels}
+          onChange={(value) => onChange("secondary_practice", value as CultivationPractice | "")}
+        />
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={form.vetiver_installed}
+            onChange={(event) => onChange("vetiver_installed", event.target.checked)}
+          />
+          Vetiver installe
+        </label>
+        <NumberInput label="Age du vetiver mois" value={form.vetiver_age_months} onChange={(value) => onChange("vetiver_age_months", value)} />
+        <NumberInput label="Distance bandes vetiver m" value={form.vetiver_spacing_m} onChange={(value) => onChange("vetiver_spacing_m", value)} />
+      </div>
+
+      <label className="field full">
+        <span>Notes sur la methode</span>
+        <textarea value={form.method_notes} onChange={(event) => onChange("method_notes", event.target.value)} />
+      </label>
+
       <label className="field full">
         <span>Notes</span>
         <textarea value={form.notes} onChange={(event) => onChange("notes", event.target.value)} />
@@ -620,7 +730,7 @@ function PredictionPage({
                 <option value="" disabled>Selectionner une observation</option>
                 {observations.map((observation) => (
                   <option key={observation.id} value={observation.id}>
-                    {observation.observation_code} - {observation.crop} - {observation.province}
+                    {observation.observation_code} - {observation.crop} - {practiceLabels[observation.cultivation_practice] ?? "methode non precisee"}
                   </option>
                 ))}
               </select>
@@ -631,7 +741,9 @@ function PredictionPage({
                 <span>Observation selectionnee</span>
                 <strong>{selected.observation_code}</strong>
                 <p>{selected.crop} sur {selected.surface_ha} ha a {selected.province}</p>
-                <small>Sol {selected.soil_texture}, pluie {selected.rainfall_mm ?? "-"} mm, engrais {selected.fertilizer_kg_ha ?? "-"} kg/ha</small>
+                <small>
+                  Methode {practiceLabels[selected.cultivation_practice] ?? "-"}, sol {selected.soil_texture}, pluie {selected.rainfall_mm ?? "-"} mm
+                </small>
               </div>
             )}
 
