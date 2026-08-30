@@ -8,6 +8,7 @@ import {
   Database,
   FileText,
   Leaf,
+  LineChart,
   Loader2,
   Plus,
   RefreshCw,
@@ -18,7 +19,7 @@ import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
-type View = "dashboard" | "observations" | "new-observation" | "prediction";
+type View = "dashboard" | "observations" | "new-observation" | "prediction" | "analysis";
 type PressureLevel = "low" | "medium" | "high";
 type DrainageLevel = "good" | "medium" | "poor";
 type SoilTexture = "clay" | "sandy" | "loamy" | "silty" | "mixed";
@@ -243,6 +244,72 @@ function cleanPayload(form: Record<string, unknown>) {
   );
 }
 
+function predictionPayloadFromObservation(observation: FieldObservation) {
+  return {
+    crop: observation.crop,
+    province: observation.province,
+    surface_ha: observation.surface_ha,
+    soil_ph: observation.soil_ph,
+    organic_matter_percent: observation.organic_matter_percent,
+    rainfall_mm: observation.rainfall_mm,
+    temperature_avg_c: observation.temperature_avg_c,
+    fertilizer_kg_ha: observation.fertilizer_kg_ha,
+    irrigation: observation.irrigation,
+    pest_pressure: observation.pest_pressure,
+    disease_pressure: observation.disease_pressure,
+    planting_density_ha: observation.planting_density_ha,
+    seed_variety: observation.seed_variety,
+    previous_yield_t_ha: observation.actual_yield_t_ha,
+    slope_percent: observation.slope_percent,
+    cultivation_practice: observation.cultivation_practice,
+    secondary_practice: observation.secondary_practice,
+    vetiver_installed: observation.vetiver_installed,
+    vetiver_age_months: observation.vetiver_age_months,
+    vetiver_spacing_m: observation.vetiver_spacing_m,
+  };
+}
+
+function hasActualYield(observation: FieldObservation) {
+  return observation.actual_yield_t_ha !== null && observation.actual_yield_t_ha !== undefined;
+}
+
+function usesVetiver(observation: FieldObservation) {
+  return (
+    observation.vetiver_installed ||
+    observation.cultivation_practice === "vetiver_hedgerows" ||
+    observation.secondary_practice === "vetiver_hedgerows"
+  );
+}
+
+function average(values: number[]) {
+  if (values.length === 0) return null;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function formatNumber(value: number | null | undefined, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "-";
+  return new Intl.NumberFormat("fr-FR", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: value % 1 === 0 ? 0 : Math.min(1, digits),
+  }).format(value);
+}
+
+function groupAverageYield(observations: FieldObservation[], getKey: (observation: FieldObservation) => string) {
+  const groups = new Map<string, { label: string; count: number; total: number }>();
+
+  observations.filter(hasActualYield).forEach((observation) => {
+    const label = getKey(observation) || "Non precise";
+    const current = groups.get(label) ?? { label, count: 0, total: 0 };
+    current.count += 1;
+    current.total += observation.actual_yield_t_ha ?? 0;
+    groups.set(label, current);
+  });
+
+  return Array.from(groups.values())
+    .map((group) => ({ ...group, value: group.total / group.count }))
+    .sort((a, b) => b.value - a.value);
+}
+
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -266,6 +333,9 @@ function App() {
   const [observations, setObservations] = React.useState<FieldObservation[]>([]);
   const [selected, setSelected] = React.useState<FieldObservation | null>(null);
   const [prediction, setPrediction] = React.useState<YieldPrediction | null>(null);
+  const [analysisPredictions, setAnalysisPredictions] = React.useState<Record<number, YieldPrediction>>({});
+  const [analysisError, setAnalysisError] = React.useState("");
+  const [analysisLoading, setAnalysisLoading] = React.useState(false);
   const [yieldForm, setYieldForm] = React.useState<YieldResultForm>(() => createYieldResultForm());
   const [yieldModalOpen, setYieldModalOpen] = React.useState(false);
   const [apiStatus, setApiStatus] = React.useState<"checking" | "ok" | "error">("checking");
@@ -363,28 +433,7 @@ function App() {
     try {
       const result = await apiRequest<YieldPrediction>("/predictions/yield", {
         method: "POST",
-        body: JSON.stringify({
-          crop: observation.crop,
-          province: observation.province,
-          surface_ha: observation.surface_ha,
-          soil_ph: observation.soil_ph,
-          organic_matter_percent: observation.organic_matter_percent,
-          rainfall_mm: observation.rainfall_mm,
-          temperature_avg_c: observation.temperature_avg_c,
-          fertilizer_kg_ha: observation.fertilizer_kg_ha,
-          irrigation: observation.irrigation,
-          pest_pressure: observation.pest_pressure,
-          disease_pressure: observation.disease_pressure,
-          planting_density_ha: observation.planting_density_ha,
-          seed_variety: observation.seed_variety,
-          previous_yield_t_ha: observation.actual_yield_t_ha,
-          slope_percent: observation.slope_percent,
-          cultivation_practice: observation.cultivation_practice,
-          secondary_practice: observation.secondary_practice,
-          vetiver_installed: observation.vetiver_installed,
-          vetiver_age_months: observation.vetiver_age_months,
-          vetiver_spacing_m: observation.vetiver_spacing_m,
-        }),
+        body: JSON.stringify(predictionPayloadFromObservation(observation)),
       });
       setPrediction(result);
       setView("prediction");
@@ -392,6 +441,36 @@ function App() {
       setMessage(error instanceof Error ? error.message : "Prediction impossible.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function calculateAnalysisPredictions() {
+    const observationsWithYield = observations.filter(hasActualYield);
+    if (observationsWithYield.length === 0) {
+      setAnalysisError("Renseigne au moins un rendement reel avant de comparer prediction et recolte.");
+      return;
+    }
+
+    setAnalysisLoading(true);
+    setAnalysisError("");
+    try {
+      const results = await Promise.all(
+        observationsWithYield.map(async (observation) => ({
+          id: observation.id,
+          prediction: await apiRequest<YieldPrediction>("/predictions/yield", {
+            method: "POST",
+            body: JSON.stringify(predictionPayloadFromObservation(observation)),
+          }),
+        })),
+      );
+      setAnalysisPredictions(
+        Object.fromEntries(results.map((result) => [result.id, result.prediction])),
+      );
+      setMessage(`Analyse prediction/reel calculee sur ${results.length} observation(s).`);
+    } catch (error) {
+      setAnalysisError(error instanceof Error ? error.message : "Calcul comparatif impossible.");
+    } finally {
+      setAnalysisLoading(false);
     }
   }
 
@@ -445,6 +524,7 @@ function App() {
         <NavButton active={view === "observations"} onClick={() => setView("observations")} icon={<Database size={16} />} label="Observations" />
         <NavButton active={view === "new-observation"} onClick={() => setView("new-observation")} icon={<Plus size={16} />} label="Nouvelle observation" />
         <NavButton active={view === "prediction"} onClick={() => setView("prediction")} icon={<BarChart3 size={16} />} label="Prediction" />
+        <NavButton active={view === "analysis"} onClick={() => setView("analysis")} icon={<LineChart size={16} />} label="Analyse comparative" />
       </nav>
 
       {message && <div className="message">{message}</div>}
@@ -457,6 +537,7 @@ function App() {
           onCreate={() => setView("new-observation")}
           onObservations={() => setView("observations")}
           onPredict={() => setView("prediction")}
+          onAnalysis={() => setView("analysis")}
         />
       )}
 
@@ -499,6 +580,21 @@ function App() {
           onCreate={() => setView("new-observation")}
         />
       )}
+
+      {view === "analysis" && (
+        <ComparativeAnalysisPage
+          observations={observations}
+          predictions={analysisPredictions}
+          loading={analysisLoading}
+          error={analysisError}
+          onCalculatePredictions={calculateAnalysisPredictions}
+          onAddYield={(observation) => {
+            openYieldModal(observation);
+            setView("observations");
+          }}
+          onCreate={() => setView("new-observation")}
+        />
+      )}
     </main>
   );
 }
@@ -510,6 +606,7 @@ function DashboardPage({
   onCreate,
   onObservations,
   onPredict,
+  onAnalysis,
 }: {
   observations: FieldObservation[];
   selected: FieldObservation | null;
@@ -517,6 +614,7 @@ function DashboardPage({
   onCreate: () => void;
   onObservations: () => void;
   onPredict: () => void;
+  onAnalysis: () => void;
 }) {
   return (
     <>
@@ -543,6 +641,12 @@ function DashboardPage({
           <span className="card-icon"><BarChart3 size={22} /></span>
           <strong>Faire une prediction</strong>
           <p>Selectionner une observation et estimer le rendement agricole.</p>
+          <ArrowRight size={18} />
+        </button>
+        <button className="action-card" type="button" onClick={onAnalysis}>
+          <span className="card-icon"><LineChart size={22} /></span>
+          <strong>Analyse comparative</strong>
+          <p>Comparer vetiver, cultures, techniques et rendement reel.</p>
           <ArrowRight size={18} />
         </button>
       </section>
@@ -1009,6 +1113,261 @@ function PredictionPage({
           <p className="empty">Aucune prediction lancee pour le moment.</p>
         )}
       </section>
+    </div>
+  );
+}
+
+function ComparativeAnalysisPage({
+  observations,
+  predictions,
+  loading,
+  error,
+  onCalculatePredictions,
+  onAddYield,
+  onCreate,
+}: {
+  observations: FieldObservation[];
+  predictions: Record<number, YieldPrediction>;
+  loading: boolean;
+  error: string;
+  onCalculatePredictions: () => void;
+  onAddYield: (observation: FieldObservation) => void;
+  onCreate: () => void;
+}) {
+  const observationsWithYield = observations.filter(hasActualYield);
+  const vetiverObservations = observationsWithYield.filter(usesVetiver);
+  const nonVetiverObservations = observationsWithYield.filter((observation) => !usesVetiver(observation));
+  const averageYield = average(observationsWithYield.map((observation) => observation.actual_yield_t_ha ?? 0));
+  const vetiverAverage = average(vetiverObservations.map((observation) => observation.actual_yield_t_ha ?? 0));
+  const nonVetiverAverage = average(nonVetiverObservations.map((observation) => observation.actual_yield_t_ha ?? 0));
+  const vetiverGap =
+    vetiverAverage !== null && nonVetiverAverage !== null ? vetiverAverage - nonVetiverAverage : null;
+  const cropYield = groupAverageYield(
+    observations,
+    (observation) => cropLabels[observation.crop] ?? observation.crop,
+  );
+  const practiceYield = groupAverageYield(
+    observations,
+    (observation) => practiceLabels[observation.cultivation_practice] ?? observation.cultivation_practice,
+  );
+  const predictedRows = observationsWithYield.map((observation) => {
+    const result = predictions[observation.id];
+    const actual = observation.actual_yield_t_ha ?? 0;
+    const predicted = result?.estimated_yield_t_ha;
+    const gap = predicted === undefined ? null : actual - predicted;
+    const gapPercent = predicted && predicted > 0 && gap !== null ? (gap / predicted) * 100 : null;
+
+    return { observation, actual, predicted, gap, gapPercent };
+  });
+  const bestPractice = practiceYield[0];
+  const bestCrop = cropYield[0];
+
+  return (
+    <section className="analysis-page">
+      <div className="panel analysis-hero">
+        <div className="panel-title row-between">
+          <div className="title-block">
+            <LineChart size={22} />
+            <div>
+              <h2>Analyse comparative</h2>
+              <p className="muted">Comparer les rendements reels par culture, technique et usage du vetiver.</p>
+            </div>
+          </div>
+          <button className="primary compact" type="button" onClick={onCreate}>
+            <Plus size={16} />
+            Nouvelle observation
+          </button>
+        </div>
+
+        <div className="summary-grid analysis-summary">
+          <Metric icon={<Database size={20} />} label="Observations" value={observations.length.toString()} />
+          <Metric icon={<CheckCircle2 size={20} />} label="Avec rendement reel" value={observationsWithYield.length.toString()} />
+          <Metric icon={<BarChart3 size={20} />} label="Rendement moyen" value={`${formatNumber(averageYield)} t/ha`} />
+        </div>
+      </div>
+
+      {observations.length === 0 ? (
+        <div className="empty-state">
+          <Sprout size={28} />
+          <strong>Aucune observation disponible.</strong>
+          <p>Ajoute des observations terrain pour commencer les analyses comparatives.</p>
+          <button className="primary compact" type="button" onClick={onCreate}>Creer une observation</button>
+        </div>
+      ) : observationsWithYield.length === 0 ? (
+        <div className="empty-state">
+          <BarChart3 size={28} />
+          <strong>Aucun rendement reel renseigne.</strong>
+          <p>Les analyses de performance se basent sur les rendements mesures apres recolte.</p>
+          {observations[0] && (
+            <button className="primary compact" type="button" onClick={() => onAddYield(observations[0])}>
+              Renseigner un rendement
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <div className="analysis-grid">
+            <section className="panel analysis-card">
+              <div className="panel-title">
+                <Sprout size={20} />
+                <div>
+                  <h2>Vetiver vs sans vetiver</h2>
+                  <p className="muted">Moyenne calculee sur les observations avec rendement reel.</p>
+                </div>
+              </div>
+              <div className="comparison-grid">
+                <ComparisonStat label="Avec vetiver" value={vetiverAverage} count={vetiverObservations.length} />
+                <ComparisonStat label="Sans vetiver" value={nonVetiverAverage} count={nonVetiverObservations.length} />
+              </div>
+              <div className="insight-box">
+                <span>Ecart observe</span>
+                <strong className={vetiverGap !== null && vetiverGap >= 0 ? "positive" : "negative"}>
+                  {vetiverGap === null ? "Donnees insuffisantes" : `${vetiverGap >= 0 ? "+" : ""}${formatNumber(vetiverGap)} t/ha`}
+                </strong>
+                <p>
+                  {vetiverGap === null
+                    ? "Il faut au moins un rendement avec vetiver et un rendement sans vetiver pour comparer."
+                    : "Cet ecart est descriptif : plus il y aura d'observations, plus la lecture sera fiable."}
+                </p>
+              </div>
+            </section>
+
+            <section className="panel analysis-card">
+              <div className="panel-title">
+                <BarChart3 size={20} />
+                <div>
+                  <h2>Meilleures performances</h2>
+                  <p className="muted">Lecture rapide des groupes les plus performants.</p>
+                </div>
+              </div>
+              <div className="leader-list">
+                <LeaderItem label="Culture en tete" value={bestCrop?.label ?? "-"} meta={bestCrop ? `${formatNumber(bestCrop.value)} t/ha` : "-"} />
+                <LeaderItem label="Technique en tete" value={bestPractice?.label ?? "-"} meta={bestPractice ? `${formatNumber(bestPractice.value)} t/ha` : "-"} />
+                <LeaderItem label="Observations exploitables" value={observationsWithYield.length.toString()} meta="rendement reel saisi" />
+              </div>
+            </section>
+          </div>
+
+          <div className="analysis-grid">
+            <section className="panel analysis-card">
+              <div className="panel-title">
+                <Leaf size={20} />
+                <div>
+                  <h2>Rendement par culture</h2>
+                  <p className="muted">Moyenne t/ha par culture observee.</p>
+                </div>
+              </div>
+              <BarList entries={cropYield} />
+            </section>
+
+            <section className="panel analysis-card">
+              <div className="panel-title">
+                <FileText size={20} />
+                <div>
+                  <h2>Rendement par technique culturale</h2>
+                  <p className="muted">Moyenne t/ha selon la methode principale.</p>
+                </div>
+              </div>
+              <BarList entries={practiceYield} />
+            </section>
+          </div>
+
+          <section className="panel analysis-card">
+            <div className="panel-title row-between">
+              <div className="title-block">
+                <BarChart3 size={20} />
+                <div>
+                  <h2>Prediction vs rendement reel</h2>
+                  <p className="muted">Calcule l'ecart entre le modele et les rendements mesures.</p>
+                </div>
+              </div>
+              <button className="primary compact" type="button" onClick={onCalculatePredictions} disabled={loading}>
+                {loading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+                Calculer
+              </button>
+            </div>
+
+            {error && <div className="inline-error">{error}</div>}
+
+            <div className="table-wrap">
+              <table className="analysis-table">
+                <thead>
+                  <tr>
+                    <th>Observation</th>
+                    <th>Culture</th>
+                    <th>Technique</th>
+                    <th>Pred. t/ha</th>
+                    <th>Reel t/ha</th>
+                    <th>Ecart</th>
+                    <th>Ecart %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {predictedRows.map(({ observation, predicted, actual, gap, gapPercent }) => (
+                    <tr key={observation.id}>
+                      <td>{observation.observation_code}</td>
+                      <td>{cropLabels[observation.crop] ?? observation.crop}</td>
+                      <td>{practiceLabels[observation.cultivation_practice] ?? observation.cultivation_practice}</td>
+                      <td>{predicted === undefined ? "Non calcule" : formatNumber(predicted)}</td>
+                      <td>{formatNumber(actual)}</td>
+                      <td className={gap === null ? "" : gap >= 0 ? "positive" : "negative"}>
+                        {gap === null ? "-" : `${gap >= 0 ? "+" : ""}${formatNumber(gap)}`}
+                      </td>
+                      <td className={gapPercent === null ? "" : gapPercent >= 0 ? "positive" : "negative"}>
+                        {gapPercent === null ? "-" : `${gapPercent >= 0 ? "+" : ""}${formatNumber(gapPercent, 1)}%`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ComparisonStat({ label, value, count }: { label: string; value: number | null; count: number }) {
+  return (
+    <div className="comparison-stat">
+      <span>{label}</span>
+      <strong>{formatNumber(value)} t/ha</strong>
+      <small>{count} observation(s)</small>
+    </div>
+  );
+}
+
+function LeaderItem({ label, value, meta }: { label: string; value: string; meta: string }) {
+  return (
+    <div className="leader-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{meta}</small>
+    </div>
+  );
+}
+
+function BarList({ entries }: { entries: Array<{ label: string; value: number; count: number }> }) {
+  const maxValue = Math.max(...entries.map((entry) => entry.value), 0);
+
+  if (entries.length === 0) {
+    return <p className="empty">Aucune donnee exploitable pour ce graphique.</p>;
+  }
+
+  return (
+    <div className="bar-list">
+      {entries.map((entry) => (
+        <div className="bar-row" key={entry.label}>
+          <div className="bar-label">
+            <strong>{entry.label}</strong>
+            <span>{entry.count} obs. · {formatNumber(entry.value)} t/ha</span>
+          </div>
+          <div className="bar-track" aria-hidden="true">
+            <div className="bar-fill" style={{ width: `${maxValue > 0 ? (entry.value / maxValue) * 100 : 0}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
