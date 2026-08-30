@@ -10,6 +10,13 @@ class YieldPredictor:
         "maize": 2.5,
         "cassava": 12.0,
         "rice": 3.0,
+        "beans": 1.2,
+        "groundnut": 1.4,
+        "soybean": 1.6,
+        "sweet_potato": 8.0,
+        "plantain": 12.0,
+        "banana": 18.0,
+        "sorghum": 1.8,
         "watermelon": 18.0,
         "palm": 10.0,
         "rubber": 1.2,
@@ -142,4 +149,3 @@ class YieldPredictor:
         if risk_level == "medium":
             return "Surveiller les facteurs limitants identifies et completer les donnees sol/meteo pour ameliorer la precision."
         return "Conditions globalement favorables selon les donnees fournies. Continuer la collecte pour renforcer le futur modele IA."
-
